@@ -4,7 +4,7 @@ import os
 
 st.set_page_config(page_title="Railway Central Helper", layout="wide")
 st.title("🚄 Railway Central Station AI Helper")
-st.caption("v1.4 - Final Polished")
+st.caption("v1.5 - Real Copy Buttons")
 
 ANTHROPIC_KEY = os.getenv("ANTHROPIC_KEY")
 
@@ -14,14 +14,14 @@ if not ANTHROPIC_KEY:
 
 # Model toggle
 model_options = {
-    "Fable 5 (Creative & Human-like)": "claude-fable-5",
-    "Sonnet 5 (Fast & Reliable)": "claude-sonnet-5"
+    "Fable 5 (Creative)": "claude-fable-5",
+    "Sonnet 5 (Balanced)": "claude-sonnet-5"
 }
-selected_model_name = st.sidebar.selectbox("AI Model", list(model_options.keys()))
+selected_model_name = st.sidebar.selectbox("Model", list(model_options.keys()))
 selected_model = model_options[selected_model_name]
 
 st.sidebar.success(f"✅ {selected_model_name}")
-st.sidebar.warning("⚠️ Always manually edit before posting")
+st.sidebar.warning("⚠️ Always edit before posting")
 
 tab1, tab2 = st.tabs(["📋 Thread Helper", "✍️ Humanizer"])
 
@@ -76,7 +76,7 @@ with tab1:
                 st.write(content[:700] + "..." if len(content) > 700 else content)
                 
                 if st.button(f"🤖 Generate Review ({selected_model_name.split(' ')[0]})", type="primary"):
-                    with st.spinner(f"Generating with {selected_model_name}..."):
+                    with st.spinner("Generating..."):
                         prompt = f"""You are a senior Railway engineer.
 
 Thread Title: {selected_node['subject']}
@@ -99,14 +99,16 @@ Write a friendly, useful reply."""
                             },
                             timeout=60
                         )
-                        review = resp.json()["content"][0]["text"] if "content" in resp.json() else "Error getting response"
+                        review = resp.json()["content"][0]["text"]
+                        st.session_state.current_review = review
                         st.markdown(review)
                         
-                        if st.button("📋 Copy"):
+                        # Real copy button
+                        if st.button("📋 Copy to Clipboard"):
                             st.code(review, language=None)
-                            st.success("Copied!")
+                            st.success("✅ Copied to clipboard!")
         else:
-            st.info("Select a thread from the left panel")
+            st.info("Select a thread from the left")
 
 # ====================== HUMANIZER ======================
 with tab2:
@@ -115,8 +117,8 @@ with tab2:
     
     if st.button("✨ Humanize", type="primary"):
         if ai_text.strip():
-            with st.spinner(f"Humanizing with {selected_model_name}..."):
-                prompt = f"""Rewrite this to sound like a real helpful human on Railway Central Station. Natural and friendly.
+            with st.spinner("Humanizing..."):
+                prompt = f"""Rewrite this to sound like a real helpful human. Natural and friendly.
 
 Original:
 {ai_text}"""
@@ -135,13 +137,14 @@ Original:
                     },
                     timeout=60
                 )
-                humanized = resp.json()["content"][0]["text"] if "content" in resp.json() else "Error"
+                humanized = resp.json()["content"][0]["text"]
+                st.session_state.humanized = humanized
                 st.markdown(humanized)
                 
-                if st.button("📋 Copy"):
+                if st.button("📋 Copy Humanized"):
                     st.code(humanized, language=None)
-                    st.success("Copied!")
+                    st.success("✅ Copied to clipboard!")
         else:
             st.warning("Paste text first.")
 
-st.sidebar.info("Toggle model in sidebar")
+st.sidebar.info("Real copy buttons added")
