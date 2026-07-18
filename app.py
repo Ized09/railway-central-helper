@@ -13,71 +13,155 @@ if not ANTHROPIC_KEY:
     st.stop()
 
 st.sidebar.success("✅ Claude Connected")
-st.sidebar.warning("Always edit before posting")
+st.sidebar.warning("⚠️ Always manually edit before posting")
 
 tab1, tab2 = st.tabs(["📋 Thread Helper", "✍️ Humanizer"])
 
-# ====================== TAB 1: THREAD HELPER ======================
+# ====================== THREAD HELPER TAB ======================
 with tab1:
-    # (Keep the split layout code from previous message here)
-    # ... I'll abbreviate for space, but use the full split layout from last response
+    st.subheader("Thread Helper")
+    
+    # Session state for helper
+    if "threads" not in st.session_state:
+        st.session_state.threads = []
+    if "selected_slug" not in st.session_state:
+        st.session_state.selected_slug = None
+    if "reviews" not in st.session_state:
+        st.session_state.reviews = {}
 
-    st.info("Thread Helper tab - select thread and generate AI review")
+    if st.button("🔄 Refresh Recent Threads", type="primary"):
+        with st.spinner("Loading..."):
+            try:
+                resp = requests.post("https://station-server.railway.com/gql", json={"query": """
+                {
+                  threads(first: 20, sort: recent_activity) {
+                    edges {
+                      node {
+                        slug
+                        subject
+                        status
+                        topic { displayName }
+                        upvoteCount
+                        createdAt
+                        content { data }
+                      }
+                    }
+                  }
+                }
+                """})
+                st.session_state.threads = resp.json()["data"]["threads"]["edges"]
+                st.session_state.selected_slug = None
+            except:
+                st.error("Could not fetch threads")
 
-# ====================== TAB 2: HUMANIZER ======================
+    col1, col2 = st.columns([1, 2])
+
+    with col1:
+        st.subheader("Recent Threads")
+        for edge in st.session_state.threads:
+            node = edge["node"]
+            is_bounty = "$" in node["subject"].lower() or "bounty" in node["subject"].lower()
+            if st.button(f"{'💰 ' if is_bounty else ''}{node['subject'][:70]}...", key=node["slug"], use_container_width=True):
+                st.session_state.selected_slug = node["slug"]
+
+    with col2:
+        if st.session_state.selected_slug:
+            selected_node = None
+            for edge in st.session_state.threads:
+                if edge["node"]["slug"] == st.session_state.selected_slug:
+                    selected_node = edge["node"]
+                    break
+            
+            if selected_node:
+                st.subheader(f"Reviewing: {selected_node['subject']}")
+                content = selected_node.get("content", {}).get("data", "")
+                st.write(content[:700] + "..." if len(content) > 700 else content)
+                
+                if st.button("🤖 Generate AI Review + Confidence", type="primary"):
+                    with st.spinner("Claude reviewing..."):
+                        prompt = f"""You are a senior Railway engineer.
+
+Thread Title: {selected_node['subject']}
+
+Content: {content[:6000]}
+
+Write a friendly, useful reply."""
+
+                        resp = requests.post(
+                            "https://api.anthropic.com/v1/messages",
+                            headers={
+                                "x-api-key": ANTHROPIC_KEY,
+                                "anthropic-version": "2023-06-01",
+                                "Content-Type": "application/json"
+                            },
+                            json={
+                                "model": "claude-sonnet-5",
+                                "max_tokens": 1200,
+                                "messages": [{"role": "user", "content": prompt}]
+                            }
+                        )
+                        review = resp.json()["content"][0]["text"]
+                        st.session_state.current_review = review
+                        
+                        st.markdown("### AI Review")
+                        st.markdown(review)
+                        
+                        if st.button("📋 Copy"):
+                            st.code(review, language=None)
+                            st.success("Copied!")
+        else:
+            st.info("Select a thread from the left")
+
+# ====================== HUMANIZER TAB ======================
 with tab2:
-    st.subheader("Humanizer Tool")
-    st.caption("Make AI text sound more natural and human")
+    st.subheader("✍️ Humanizer Tool")
+    st.caption("Make AI text sound more natural")
     
-    ai_text = st.text_area("Paste AI-generated review here:", height=300)
+    ai_text = st.text_area("Paste AI-generated text here:", height=250)
     
-    style = st.selectbox("Style", ["Natural & Friendly", "Professional but Warm", "Short & Direct", "Detailed & Helpful"])
+    style = st.selectbox("Humanize Style", [
+        "Natural & Friendly (most recommended)",
+        "Professional but Warm",
+        "Short & Direct",
+        "Detailed & Helpful"
+    ])
     
-    if st.button("✨ Humanize Text", type="primary"):
+    if st.button("✨ Humanize", type="primary"):
         if ai_text.strip():
             with st.spinner("Humanizing..."):
-                prompt = f"""Rewrite the following reply to sound more like a helpful human on Railway Central Station.
+                prompt = f"""Rewrite this reply to sound like a helpful, real human on Railway Central Station.
 
 Style: {style}
 
-Original:
+Original text:
 {ai_text}
 
-Make it natural, friendly, and human. Avoid sounding too robotic. Keep the technical accuracy but add warmth and personality."""
-
-                try:
-                    resp = requests.post(
-                        "https://api.anthropic.com/v1/messages",
-                        headers={
-                            "x-api-key": ANTHROPIC_KEY,
-                            "anthropic-version": "2023-06-01",
-                            "Content-Type": "application/json"
-                        },
-                        json={
-                            "model": "claude-sonnet-5",
-                            "max_tokens": 1200,
-                            "messages": [{"role": "user", "content": prompt}]
-                        }
-                    )
-                    humanized = resp.json()["content"][0]["text"]
-                    st.session_state.humanized_text = humanized
-                except Exception as e:
-                    st.error(f"Error: {str(e)}")
+Make it natural, friendly, and human-sounding. Avoid robotic language."""
+                
+                resp = requests.post(
+                    "https://api.anthropic.com/v1/messages",
+                    headers={
+                        "x-api-key": ANTHROPIC_KEY,
+                        "anthropic-version": "2023-06-01",
+                        "Content-Type": "application/json"
+                    },
+                    json={
+                        "model": "claude-sonnet-5",
+                        "max_tokens": 1200,
+                        "messages": [{"role": "user", "content": prompt}]
+                    }
+                )
+                humanized = resp.json()["content"][0]["text"]
+                st.session_state.humanized = humanized
         else:
-            st.warning("Please paste some text first.")
+            st.warning("Paste some text first.")
 
-    if "humanized_text" in st.session_state:
+    if "humanized" in st.session_state:
         st.subheader("Humanized Version")
-        st.markdown(st.session_state.humanized_text)
+        st.markdown(st.session_state.humanized)
         
-        col1, col2 = st.columns(2)
-        with col1:
-            if st.button("📋 Copy Humanized"):
-                st.code(st.session_state.humanized_text, language=None)
-                st.success("Copied!")
-        with col2:
-            if st.button("🔄 Humanize Again"):
-                st.session_state.humanized_text = None
-                st.rerun()
+        if st.button("📋 Copy Humanized"):
+            st.code(st.session_state.humanized, language=None)
+            st.success("Copied!")
 
-st.sidebar.info("Use Helper tab for AI review → Humanizer tab to make it sound natural")
+st.sidebar.info("Thread Helper → Generate AI Review\nHumanizer → Make it sound natural")
