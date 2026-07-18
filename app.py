@@ -4,7 +4,7 @@ import os
 
 st.set_page_config(page_title="Railway Central Helper", layout="wide")
 st.title("🚄 Railway Central Station AI Helper")
-st.caption("v0.6 - Stable UI")
+st.caption("v0.7 - Stable Review Display")
 
 ANTHROPIC_KEY = os.getenv("ANTHROPIC_KEY")
 
@@ -14,9 +14,9 @@ if not ANTHROPIC_KEY:
 
 st.sidebar.success("✅ Claude Connected")
 
-# Session state
-if "selected_thread" not in st.session_state:
-    st.session_state.selected_thread = None
+# Session state for selected thread and reviews
+if "selected_slug" not in st.session_state:
+    st.session_state.selected_slug = None
 if "reviews" not in st.session_state:
     st.session_state.reviews = {}
 
@@ -78,43 +78,45 @@ Write a friendly, useful reply."""
     except Exception as e:
         return f"Error: {str(e)}"
 
-# Main UI
-show_bounties_only = st.checkbox("Show only Bounty threads 💰", value=False)
-
-threads = []
+# Refresh
 if st.button("🔄 Refresh Recent Threads", type="primary"):
     with st.spinner("Loading..."):
-        threads = fetch_threads()
+        st.session_state.threads = fetch_threads()
 
-for edge in threads or []:
+# Display threads
+for edge in st.session_state.get("threads", []):
     node = edge["node"]
     is_bounty = "$" in node["subject"].lower() or "bounty" in node["subject"].lower()
     
-    if show_bounties_only and not is_bounty:
-        continue
-        
-    col1, col2 = st.columns([4,1])
+    col1, col2 = st.columns([5,1])
     with col1:
         if st.button(f"{'💰 ' if is_bounty else ''}{node['subject']}", key=node["slug"]):
-            st.session_state.selected_thread = node
+            st.session_state.selected_slug = node["slug"]
     with col2:
-        st.caption(f"{node['topic']['displayName']}")
+        st.caption(node['topic']['displayName'])
 
-# Show selected review
-if st.session_state.selected_thread:
-    node = st.session_state.selected_thread
-    st.subheader(f"Reviewing: {node['subject']}")
+# Show review for selected thread
+if st.session_state.selected_slug:
+    # Find the thread
+    selected_node = None
+    for edge in st.session_state.get("threads", []):
+        if edge["node"]["slug"] == st.session_state.selected_slug:
+            selected_node = edge["node"]
+            break
     
-    content = node.get("content", {}).get("data", "")
-    st.write(content[:800] + "..." if len(content) > 800 else content)
-    
-    if st.button("🤖 Generate AI Review"):
-        with st.spinner("Claude reviewing..."):
-            review = get_ai_review(node["slug"], node["subject"], content)
-            st.markdown(review)
-            
-            if st.button("📋 Copy Reply"):
-                st.code(review, language=None)
-                st.success("Copied!")
+    if selected_node:
+        st.subheader(f"Reviewing: {selected_node['subject']}")
+        content = selected_node.get("content", {}).get("data", "")
+        st.write(content[:800] + "..." if len(content) > 800 else content)
+        
+        if st.button("🤖 Generate AI Review"):
+            with st.spinner("Claude reviewing..."):
+                review = get_ai_review(selected_node["slug"], selected_node["subject"], content)
+                st.markdown("### AI Review")
+                st.markdown(review)
+                
+                if st.button("📋 Copy Reply"):
+                    st.code(review, language=None)
+                    st.success("Copied!")
 
-st.sidebar.info("Click a thread title to review it")
+st.sidebar.info("Click a thread title → Generate AI Review")
