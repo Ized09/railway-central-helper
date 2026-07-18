@@ -8,7 +8,7 @@ st.title("🚄 Railway Central Station AI Helper - Debug Mode")
 ANTHROPIC_KEY = os.getenv("ANTHROPIC_KEY")
 
 if not ANTHROPIC_KEY:
-    st.error("Anthropic API key not found in Variables.")
+    st.error("Anthropic API key not found.")
     st.stop()
 
 st.success("Key loaded successfully!")
@@ -17,7 +17,7 @@ if st.button("Test Claude API Call"):
     with st.spinner("Calling Claude..."):
         try:
             payload = {
-                "model": "claude-3-5-sonnet-20240620",
+                "model": "claude-3-5-sonnet-20241022",   # Updated model
                 "max_tokens": 300,
                 "messages": [{"role": "user", "content": "Say hello and confirm you are working."}]
             }
@@ -36,11 +36,11 @@ if st.button("Test Claude API Call"):
             
             if resp.status_code == 200:
                 result = resp.json()
-                st.success("Success!")
+                st.success("✅ Success!")
                 st.write(result["content"][0]["text"])
             else:
-                st.error(f"API Error: {resp.text}")
+                st.error(f"API Error: {resp.text[:500]}")
         except Exception as e:
             st.error(f"Exception: {str(e)}")
 
-st.info("If this Test button works, the full version will work too.")
+st.info("If this works, we'll go back to the full bounty helper.")
