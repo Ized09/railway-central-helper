@@ -17,7 +17,7 @@ if st.button("Test Claude API Call"):
     with st.spinner("Calling Claude..."):
         try:
             payload = {
-                "model": "claude-3-5-sonnet-20241022",   # Updated model
+                "model": "claude-sonnet-5",   # Latest stable Sonnet model
                 "max_tokens": 300,
                 "messages": [{"role": "user", "content": "Say hello and confirm you are working."}]
             }
@@ -39,8 +39,8 @@ if st.button("Test Claude API Call"):
                 st.success("✅ Success!")
                 st.write(result["content"][0]["text"])
             else:
-                st.error(f"API Error: {resp.text[:500]}")
+                st.error(f"API Error: {resp.text[:800]}")
         except Exception as e:
             st.error(f"Exception: {str(e)}")
 
-st.info("If this works, we'll go back to the full bounty helper.")
+st.info("If this Test button works, the full bounty helper will work too.")
