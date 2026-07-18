@@ -4,7 +4,7 @@ import os
 
 st.set_page_config(page_title="Railway Central Helper", layout="wide")
 st.title("🚄 Railway Central Station AI Helper")
-st.caption("v0.8 - Review Below Thread")
+st.caption("v0.8 - Personal Tool + Confidence")
 
 ANTHROPIC_KEY = os.getenv("ANTHROPIC_KEY")
 
@@ -13,6 +13,7 @@ if not ANTHROPIC_KEY:
     st.stop()
 
 st.sidebar.success("✅ Claude Connected")
+st.sidebar.warning("⚠️ Always manually edit before posting")
 
 # Session state
 if "selected_slug" not in st.session_state:
@@ -56,7 +57,11 @@ Thread Title: {thread_subject}
 
 Content: {content[:6000]}
 
-Write a friendly, useful reply."""
+Write a friendly, useful reply.
+
+At the end, add exactly:
+CONFIDENCE: [number 0-100]
+REASON: [one short sentence]"""
 
     try:
         resp = requests.post(
@@ -68,7 +73,7 @@ Write a friendly, useful reply."""
             },
             json={
                 "model": "claude-sonnet-5",
-                "max_tokens": 1200,
+                "max_tokens": 1400,
                 "messages": [{"role": "user", "content": prompt}]
             }
         )
@@ -97,7 +102,7 @@ for edge in st.session_state.get("threads", []):
     with col2:
         st.caption(node['topic']['displayName'])
 
-# Show review immediately below selected thread
+# Review section
 if st.session_state.selected_slug:
     selected_node = None
     for edge in st.session_state.get("threads", []):
@@ -111,20 +116,32 @@ if st.session_state.selected_slug:
         content = selected_node.get("content", {}).get("data", "")
         st.write(content[:800] + "..." if len(content) > 800 else content)
         
-        col1, col2 = st.columns(2)
-        with col1:
-            if st.button("🤖 Generate AI Review", type="primary"):
-                with st.spinner("Claude reviewing..."):
-                    review = get_ai_review(selected_node["slug"], selected_node["subject"], content)
-                    st.session_state.current_review = review
-        with col2:
-            if st.button("📋 Copy Review"):
-                if "current_review" in st.session_state:
-                    st.code(st.session_state.current_review, language=None)
+        if st.button("🤖 Generate AI Review + Confidence", type="primary"):
+            with st.spinner("Claude reviewing..."):
+                review = get_ai_review(selected_node["slug"], selected_node["subject"], content)
+                st.session_state.current_review = review
+                
+                # Extract confidence
+                confidence = 50
+                if "CONFIDENCE:" in review:
+                    try:
+                        line = [l for l in review.split("\n") if "CONFIDENCE:" in l][0]
+                        confidence = int(line.split(":")[1].strip())
+                    except:
+                        pass
+                
+                st.markdown("### AI Review")
+                st.markdown(review)
+                
+                if confidence >= 80:
+                    st.success(f"High Confidence: {confidence}/100")
+                elif confidence >= 60:
+                    st.warning(f"Medium Confidence: {confidence}/100")
+                else:
+                    st.error(f"Low Confidence: {confidence}/100")
+                
+                if st.button("📋 Copy Review"):
+                    st.code(review, language=None)
                     st.success("Copied!")
 
-        if "current_review" in st.session_state:
-            st.markdown("### AI Review")
-            st.markdown(st.session_state.current_review)
-
-st.sidebar.info("1. Refresh\n2. Click thread title\n3. Generate AI Review")
+st.sidebar.info("1. Refresh\n2. Click thread\n3. Generate Review\n\nAlways edit before posting!")
