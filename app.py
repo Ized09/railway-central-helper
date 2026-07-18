@@ -4,7 +4,7 @@ import os
 
 st.set_page_config(page_title="Railway Central Helper", layout="wide")
 st.title("🚄 Railway Central Station AI Helper")
-st.caption("v0.7 - Clear Buttons")
+st.caption("v0.8 - Review Below Thread")
 
 ANTHROPIC_KEY = os.getenv("ANTHROPIC_KEY")
 
@@ -82,18 +82,22 @@ Write a friendly, useful reply."""
 if st.button("🔄 Refresh Recent Threads", type="primary"):
     with st.spinner("Loading..."):
         st.session_state.threads = fetch_threads()
-        st.session_state.selected_slug = None  # Reset selection
+        st.session_state.selected_slug = None
 
-# Display threads as buttons
+# Display threads
 st.subheader("Recent Threads")
 for edge in st.session_state.get("threads", []):
     node = edge["node"]
     is_bounty = "$" in node["subject"].lower() or "bounty" in node["subject"].lower()
     
-    if st.button(f"{'💰 ' if is_bounty else ''}{node['subject']}", key=node["slug"]):
-        st.session_state.selected_slug = node["slug"]
+    col1, col2 = st.columns([5,1])
+    with col1:
+        if st.button(f"{'💰 ' if is_bounty else ''}{node['subject']}", key=node["slug"]):
+            st.session_state.selected_slug = node["slug"]
+    with col2:
+        st.caption(node['topic']['displayName'])
 
-# Show review for selected thread
+# Show review immediately below selected thread
 if st.session_state.selected_slug:
     selected_node = None
     for edge in st.session_state.get("threads", []):
@@ -102,6 +106,7 @@ if st.session_state.selected_slug:
             break
     
     if selected_node:
+        st.divider()
         st.subheader(f"Reviewing: {selected_node['subject']}")
         content = selected_node.get("content", {}).get("data", "")
         st.write(content[:800] + "..." if len(content) > 800 else content)
@@ -113,7 +118,7 @@ if st.session_state.selected_slug:
                     review = get_ai_review(selected_node["slug"], selected_node["subject"], content)
                     st.session_state.current_review = review
         with col2:
-            if st.button("📋 Copy Last Review"):
+            if st.button("📋 Copy Review"):
                 if "current_review" in st.session_state:
                     st.code(st.session_state.current_review, language=None)
                     st.success("Copied!")
@@ -122,4 +127,4 @@ if st.session_state.selected_slug:
             st.markdown("### AI Review")
             st.markdown(st.session_state.current_review)
 
-st.sidebar.info("1. Click Refresh\n2. Click a thread title\n3. Click Generate AI Review")
+st.sidebar.info("1. Refresh\n2. Click thread title\n3. Generate AI Review")
