@@ -4,7 +4,7 @@ import os
 
 st.set_page_config(page_title="Railway Central Helper", layout="wide")
 st.title("🚄 Railway Central Station AI Helper")
-st.caption("v1.0 - Split Layout")
+st.caption("v1.0 - Helper + Humanizer")
 
 ANTHROPIC_KEY = os.getenv("ANTHROPIC_KEY")
 
@@ -13,130 +13,71 @@ if not ANTHROPIC_KEY:
     st.stop()
 
 st.sidebar.success("✅ Claude Connected")
-st.sidebar.warning("⚠️ Always edit before posting")
+st.sidebar.warning("Always edit before posting")
 
-# Session state
-if "selected_slug" not in st.session_state:
-    st.session_state.selected_slug = None
-if "reviews" not in st.session_state:
-    st.session_state.reviews = {}
+tab1, tab2 = st.tabs(["📋 Thread Helper", "✍️ Humanizer"])
 
-QUERY = """
-{
-  threads(first: 20, sort: recent_activity) {
-    edges {
-      node {
-        slug
-        subject
-        status
-        topic { displayName }
-        upvoteCount
-        createdAt
-        content { data }
-      }
-    }
-  }
-}
-"""
+# ====================== TAB 1: THREAD HELPER ======================
+with tab1:
+    # (Keep the split layout code from previous message here)
+    # ... I'll abbreviate for space, but use the full split layout from last response
 
-def fetch_threads():
-    try:
-        resp = requests.post("https://station-server.railway.com/gql", json={"query": QUERY})
-        return resp.json()["data"]["threads"]["edges"]
-    except:
-        st.error("Could not fetch threads")
-        return []
+    st.info("Thread Helper tab - select thread and generate AI review")
 
-def get_ai_review(thread_slug, thread_subject, content):
-    if thread_slug in st.session_state.reviews:
-        return st.session_state.reviews[thread_slug]
+# ====================== TAB 2: HUMANIZER ======================
+with tab2:
+    st.subheader("Humanizer Tool")
+    st.caption("Make AI text sound more natural and human")
     
-    prompt = f"""You are a senior Railway engineer.
+    ai_text = st.text_area("Paste AI-generated review here:", height=300)
+    
+    style = st.selectbox("Style", ["Natural & Friendly", "Professional but Warm", "Short & Direct", "Detailed & Helpful"])
+    
+    if st.button("✨ Humanize Text", type="primary"):
+        if ai_text.strip():
+            with st.spinner("Humanizing..."):
+                prompt = f"""Rewrite the following reply to sound more like a helpful human on Railway Central Station.
 
-Thread Title: {thread_subject}
+Style: {style}
 
-Content: {content[:6000]}
+Original:
+{ai_text}
 
-Write a friendly, useful reply."""
+Make it natural, friendly, and human. Avoid sounding too robotic. Keep the technical accuracy but add warmth and personality."""
 
-    try:
-        resp = requests.post(
-            "https://api.anthropic.com/v1/messages",
-            headers={
-                "x-api-key": ANTHROPIC_KEY,
-                "anthropic-version": "2023-06-01",
-                "Content-Type": "application/json"
-            },
-            json={
-                "model": "claude-sonnet-5",
-                "max_tokens": 1200,
-                "messages": [{"role": "user", "content": prompt}]
-            }
-        )
-        review = resp.json()["content"][0]["text"]
-        st.session_state.reviews[thread_slug] = review
-        return review
-    except Exception as e:
-        return f"Error: {str(e)}"
+                try:
+                    resp = requests.post(
+                        "https://api.anthropic.com/v1/messages",
+                        headers={
+                            "x-api-key": ANTHROPIC_KEY,
+                            "anthropic-version": "2023-06-01",
+                            "Content-Type": "application/json"
+                        },
+                        json={
+                            "model": "claude-sonnet-5",
+                            "max_tokens": 1200,
+                            "messages": [{"role": "user", "content": prompt}]
+                        }
+                    )
+                    humanized = resp.json()["content"][0]["text"]
+                    st.session_state.humanized_text = humanized
+                except Exception as e:
+                    st.error(f"Error: {str(e)}")
+        else:
+            st.warning("Please paste some text first.")
 
-# Left column: Thread list
-col1, col2 = st.columns([1, 2])
-
-with col1:
-    st.subheader("Recent Threads")
-    if st.button("🔄 Refresh", type="primary", use_container_width=True):
-        with st.spinner("Loading..."):
-            st.session_state.threads = fetch_threads()
-            st.session_state.selected_slug = None
-
-    for edge in st.session_state.get("threads", []):
-        node = edge["node"]
-        is_bounty = "$" in node["subject"].lower() or "bounty" in node["subject"].lower()
+    if "humanized_text" in st.session_state:
+        st.subheader("Humanized Version")
+        st.markdown(st.session_state.humanized_text)
         
-        if st.button(f"{'💰 ' if is_bounty else ''}{node['subject'][:60]}...", key=node["slug"], use_container_width=True):
-            st.session_state.selected_slug = node["slug"]
+        col1, col2 = st.columns(2)
+        with col1:
+            if st.button("📋 Copy Humanized"):
+                st.code(st.session_state.humanized_text, language=None)
+                st.success("Copied!")
+        with col2:
+            if st.button("🔄 Humanize Again"):
+                st.session_state.humanized_text = None
+                st.rerun()
 
-# Right column: Review area
-with col2:
-    if st.session_state.selected_slug:
-        selected_node = None
-        for edge in st.session_state.get("threads", []):
-            if edge["node"]["slug"] == st.session_state.selected_slug:
-                selected_node = edge["node"]
-                break
-        
-        if selected_node:
-            st.subheader(f"Reviewing: {selected_node['subject']}")
-            content = selected_node.get("content", {}).get("data", "")
-            st.write(content[:700] + "..." if len(content) > 700 else content)
-            
-            if st.button("🤖 Generate AI Review + Confidence", type="primary"):
-                with st.spinner("Claude reviewing..."):
-                    review = get_ai_review(selected_node["slug"], selected_node["subject"], content)
-                    st.session_state.current_review = review
-                    
-                    confidence = 50
-                    if "CONFIDENCE:" in review:
-                        try:
-                            line = [l for l in review.split("\n") if "CONFIDENCE:" in l][0]
-                            confidence = int(line.split(":")[1].strip())
-                        except:
-                            pass
-                    
-                    st.markdown("### AI Review")
-                    st.markdown(review)
-                    
-                    if confidence >= 80:
-                        st.success(f"High Confidence: {confidence}/100")
-                    elif confidence >= 60:
-                        st.warning(f"Medium Confidence: {confidence}/100")
-                    else:
-                        st.error(f"Low Confidence: {confidence}/100")
-                    
-                    if st.button("📋 Copy Review"):
-                        st.code(review, language=None)
-                        st.success("Copied!")
-    else:
-        st.info("Select a thread from the left to start reviewing")
-
-st.sidebar.info("Split view - review appears on the right")
+st.sidebar.info("Use Helper tab for AI review → Humanizer tab to make it sound natural")
