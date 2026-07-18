@@ -6,7 +6,12 @@ st.set_page_config(page_title="Railway Central Helper", layout="wide")
 st.title("🚄 Railway Central Station AI Helper")
 st.caption("v0.2 - AI Review Powered by Claude")
 
-ANTHROPIC_KEY = st.sidebar.text_input("Anthropic API Key", type="password", value=os.getenv("ANTHROPIC_KEY", ""))
+# Load key from Railway Variables (secure)
+ANTHROPIC_KEY = os.getenv("ANTHROPIC_KEY")
+
+if not ANTHROPIC_KEY:
+    st.error("⚠️ Anthropic API key not set. Go to Railway → Variables → Add ANTHROPIC_KEY")
+    st.stop()
 
 QUERY = """
 {
@@ -35,20 +40,16 @@ def fetch_threads():
         return []
 
 def get_ai_review(thread_subject, content):
-    if not ANTHROPIC_KEY:
-        return "Please add your Anthropic API key in the sidebar."
-    
-    prompt = f"""You are a helpful senior Railway engineer on Central Station.
-Review this thread and write a friendly, useful reply.
+    prompt = f"""You are a helpful senior Railway engineer helping on Central Station.
 
 Thread Title: {thread_subject}
-Content: {content[:8000]}
+Content: {content[:7000]}
 
-Provide:
-1. Quick summary of the issue
+Write a friendly, useful reply that includes:
+1. Quick summary of the problem
 2. Likely cause
-3. Suggested fix or troubleshooting steps
-4. A ready-to-post reply (keep it helpful and concise)
+3. Suggested fix or steps
+4. Ready-to-post reply (keep it kind and helpful)
 """
 
     try:
@@ -61,17 +62,17 @@ Provide:
             },
             json={
                 "model": "claude-3-5-sonnet-20240620",
-                "max_tokens": 1500,
+                "max_tokens": 1200,
                 "messages": [{"role": "user", "content": prompt}]
             }
         )
         return resp.json()["content"][0]["text"]
     except Exception as e:
-        return f"Error: {str(e)}"
+        return f"Error calling Claude: {str(e)}"
 
 # Main UI
 if st.button("🔄 Refresh Recent Threads"):
-    with st.spinner("Loading threads..."):
+    with st.spinner("Loading threads from Central Station..."):
         threads = fetch_threads()
         
         for edge in threads:
@@ -85,7 +86,8 @@ if st.button("🔄 Refresh Recent Threads"):
                 if st.button("🤖 Get AI Review & Suggested Reply", key=node["slug"]):
                     with st.spinner("Claude is thinking..."):
                         review = get_ai_review(node["subject"], node.get("content", {}).get("data", ""))
-                        st.markdown("### AI Review + Suggested Reply")
+                        st.markdown("### 🤖 AI Review + Suggested Reply")
                         st.markdown(review)
 
-st.sidebar.info("Add your Anthropic key to enable AI reviews.")
+st.sidebar.success("✅ Using server-side Anthropic key")
+st.sidebar.info("Add bounties filter or copy button in next update?")
