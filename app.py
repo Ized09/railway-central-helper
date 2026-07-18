@@ -4,7 +4,7 @@ import os
 
 st.set_page_config(page_title="Railway Central Helper", layout="wide")
 st.title("🚄 Railway Central Station AI Helper")
-st.caption("v0.9 - Better UI")
+st.caption("v1.0 - Split Layout")
 
 ANTHROPIC_KEY = os.getenv("ANTHROPIC_KEY")
 
@@ -13,7 +13,7 @@ if not ANTHROPIC_KEY:
     st.stop()
 
 st.sidebar.success("✅ Claude Connected")
-st.sidebar.warning("⚠️ Always manually edit before posting")
+st.sidebar.warning("⚠️ Always edit before posting")
 
 # Session state
 if "selected_slug" not in st.session_state:
@@ -79,64 +79,64 @@ Write a friendly, useful reply."""
     except Exception as e:
         return f"Error: {str(e)}"
 
-# Refresh
-if st.button("🔄 Refresh Recent Threads", type="primary"):
-    with st.spinner("Loading..."):
-        st.session_state.threads = fetch_threads()
-        st.session_state.selected_slug = None
+# Left column: Thread list
+col1, col2 = st.columns([1, 2])
 
-# Threads list
-st.subheader("Recent Threads")
-for edge in st.session_state.get("threads", []):
-    node = edge["node"]
-    is_bounty = "$" in node["subject"].lower() or "bounty" in node["subject"].lower()
-    
-    col1, col2 = st.columns([5,1])
-    with col1:
-        if st.button(f"{'💰 ' if is_bounty else ''}{node['subject']}", key=node["slug"]):
-            st.session_state.selected_slug = node["slug"]
-    with col2:
-        st.caption(node['topic']['displayName'])
+with col1:
+    st.subheader("Recent Threads")
+    if st.button("🔄 Refresh", type="primary", use_container_width=True):
+        with st.spinner("Loading..."):
+            st.session_state.threads = fetch_threads()
+            st.session_state.selected_slug = None
 
-# Review section (right below)
-if st.session_state.selected_slug:
-    selected_node = None
     for edge in st.session_state.get("threads", []):
-        if edge["node"]["slug"] == st.session_state.selected_slug:
-            selected_node = edge["node"]
-            break
-    
-    if selected_node:
-        st.divider()
-        st.subheader(f"Reviewing: {selected_node['subject']}")
-        content = selected_node.get("content", {}).get("data", "")
-        st.write(content[:800] + "..." if len(content) > 800 else content)
+        node = edge["node"]
+        is_bounty = "$" in node["subject"].lower() or "bounty" in node["subject"].lower()
         
-        if st.button("🤖 Generate AI Review + Confidence", type="primary"):
-            with st.spinner("Claude reviewing..."):
-                review = get_ai_review(selected_node["slug"], selected_node["subject"], content)
-                st.session_state.current_review = review
-                
-                confidence = 50
-                if "CONFIDENCE:" in review:
-                    try:
-                        line = [l for l in review.split("\n") if "CONFIDENCE:" in l][0]
-                        confidence = int(line.split(":")[1].strip())
-                    except:
-                        pass
-                
-                st.markdown("### AI Review")
-                st.markdown(review)
-                
-                if confidence >= 80:
-                    st.success(f"High Confidence: {confidence}/100")
-                elif confidence >= 60:
-                    st.warning(f"Medium Confidence: {confidence}/100")
-                else:
-                    st.error(f"Low Confidence: {confidence}/100")
-                
-                if st.button("📋 Copy Review"):
-                    st.code(review, language=None)
-                    st.success("Copied!")
+        if st.button(f"{'💰 ' if is_bounty else ''}{node['subject'][:60]}...", key=node["slug"], use_container_width=True):
+            st.session_state.selected_slug = node["slug"]
 
-st.sidebar.info("1. Refresh\n2. Click thread title\n3. Generate Review")
+# Right column: Review area
+with col2:
+    if st.session_state.selected_slug:
+        selected_node = None
+        for edge in st.session_state.get("threads", []):
+            if edge["node"]["slug"] == st.session_state.selected_slug:
+                selected_node = edge["node"]
+                break
+        
+        if selected_node:
+            st.subheader(f"Reviewing: {selected_node['subject']}")
+            content = selected_node.get("content", {}).get("data", "")
+            st.write(content[:700] + "..." if len(content) > 700 else content)
+            
+            if st.button("🤖 Generate AI Review + Confidence", type="primary"):
+                with st.spinner("Claude reviewing..."):
+                    review = get_ai_review(selected_node["slug"], selected_node["subject"], content)
+                    st.session_state.current_review = review
+                    
+                    confidence = 50
+                    if "CONFIDENCE:" in review:
+                        try:
+                            line = [l for l in review.split("\n") if "CONFIDENCE:" in l][0]
+                            confidence = int(line.split(":")[1].strip())
+                        except:
+                            pass
+                    
+                    st.markdown("### AI Review")
+                    st.markdown(review)
+                    
+                    if confidence >= 80:
+                        st.success(f"High Confidence: {confidence}/100")
+                    elif confidence >= 60:
+                        st.warning(f"Medium Confidence: {confidence}/100")
+                    else:
+                        st.error(f"Low Confidence: {confidence}/100")
+                    
+                    if st.button("📋 Copy Review"):
+                        st.code(review, language=None)
+                        st.success("Copied!")
+    else:
+        st.info("Select a thread from the left to start reviewing")
+
+st.sidebar.info("Split view - review appears on the right")
