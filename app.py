@@ -4,7 +4,7 @@ import os
 
 st.set_page_config(page_title="Railway Central Helper", layout="wide")
 st.title("🚄 Railway Central Station AI Helper")
-st.caption("v0.6 - Popup Reviews")
+st.caption("v0.6 - Clean & Reliable")
 
 ANTHROPIC_KEY = os.getenv("ANTHROPIC_KEY")
 
@@ -67,7 +67,7 @@ Write a friendly, useful reply."""
     except Exception as e:
         return f"Error: {str(e)}"
 
-# Main UI
+# UI
 show_bounties_only = st.checkbox("Show only Bounty threads 💰", value=False)
 
 if st.button("🔄 Refresh Recent Threads", type="primary"):
@@ -86,17 +86,15 @@ if st.button("🔄 Refresh Recent Threads", type="primary"):
                 content = node.get("content", {}).get("data", "")
                 st.write(content[:700] + "..." if len(content) > 700 else content)
                 
-                if st.button("🤖 Open AI Review", key=node["slug"]):
-                    with st.spinner("Claude reviewing..."):
-                        review = get_ai_review(node["subject"], content)
-                        
-                        # Show as popup/dialog
-                        with st.dialog("AI Review"):
+                col1, col2 = st.columns(2)
+                with col1:
+                    if st.button("🤖 Get AI Review", key=node["slug"]):
+                        with st.spinner("Claude reviewing..."):
+                            review = get_ai_review(node["subject"], content)
                             st.markdown(review)
-                            if st.button("📋 Copy Reply"):
-                                st.code(review, language=None)
-                                st.success("Copied!")
-                            if st.button("Close"):
-                                st.rerun()
+                with col2:
+                    if st.button("📋 Copy", key=f"copy_{node['slug']}"):
+                        st.code(review, language=None)
+                        st.success("Copied!")
 
-st.sidebar.info("Click 'Open AI Review' to see popup")
+st.sidebar.info("Click Get AI Review to see the response below the button")
