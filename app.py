@@ -4,7 +4,7 @@ import os
 
 st.set_page_config(page_title="Railway Central Helper", layout="wide")
 st.title("🚄 Railway Central Station AI Helper")
-st.caption("v1.1 - Testing Fable 5")
+st.caption("v1.2 - Fable 5 Fixed")
 
 ANTHROPIC_KEY = os.getenv("ANTHROPIC_KEY")
 
@@ -23,8 +23,6 @@ with tab1:
         st.session_state.threads = []
     if "selected_slug" not in st.session_state:
         st.session_state.selected_slug = None
-    if "reviews" not in st.session_state:
-        st.session_state.reviews = {}
 
     if st.button("🔄 Refresh Recent Threads", type="primary"):
         with st.spinner("Loading..."):
@@ -48,8 +46,8 @@ with tab1:
                 """})
                 st.session_state.threads = resp.json()["data"]["threads"]["edges"]
                 st.session_state.selected_slug = None
-            except:
-                st.error("Could not fetch threads")
+            except Exception as e:
+                st.error(f"Fetch error: {e}")
 
     col1, col2 = st.columns([1, 2])
 
@@ -63,49 +61,43 @@ with tab1:
 
     with col2:
         if st.session_state.selected_slug:
-            selected_node = None
-            for edge in st.session_state.threads:
-                if edge["node"]["slug"] == st.session_state.selected_slug:
-                    selected_node = edge["node"]
-                    break
-            
+            # Find selected thread
+            selected_node = next((edge["node"] for edge in st.session_state.threads if edge["node"]["slug"] == st.session_state.selected_slug), None)
             if selected_node:
                 st.subheader(f"Reviewing: {selected_node['subject']}")
                 content = selected_node.get("content", {}).get("data", "")
                 st.write(content[:700] + "..." if len(content) > 700 else content)
                 
-                if st.button("🤖 Generate AI Review (Fable 5)", type="primary"):
-                    with st.spinner("Fable 5 reviewing..."):
-                        prompt = f"""You are a senior Railway engineer.
-
-Thread Title: {selected_node['subject']}
-
-Content: {content[:6000]}
-
-Write a friendly, useful reply."""
-
-                        resp = requests.post(
-                            "https://api.anthropic.com/v1/messages",
-                            headers={
-                                "x-api-key": ANTHROPIC_KEY,
-                                "anthropic-version": "2023-06-01",
-                                "Content-Type": "application/json"
-                            },
-                            json={
-                                "model": "claude-fable-5",
-                                "max_tokens": 1200,
-                                "messages": [{"role": "user", "content": prompt}]
-                            }
-                        )
-                        review = resp.json()["content"][0]["text"]
-                        st.session_state.current_review = review
-                        st.markdown(review)
-                        
-                        if st.button("📋 Copy"):
-                            st.code(review, language=None)
-                            st.success("Copied!")
+                if st.button("🤖 Generate with Fable 5", type="primary"):
+                    with st.spinner("Fable 5 thinking..."):
+                        prompt = f"""You are a senior Railway engineer.\n\nThread Title: {selected_node['subject']}\n\nContent: {content[:6000]}\n\nWrite a friendly, useful reply."""
+                        try:
+                            resp = requests.post(
+                                "https://api.anthropic.com/v1/messages",
+                                headers={
+                                    "x-api-key": ANTHROPIC_KEY,
+                                    "anthropic-version": "2023-06-01",
+                                    "Content-Type": "application/json"
+                                },
+                                json={
+                                    "model": "claude-fable-5",
+                                    "max_tokens": 1200,
+                                    "messages": [{"role": "user", "content": prompt}]
+                                }
+                            )
+                            data = resp.json()
+                            if "content" in data and len(data["content"]) > 0:
+                                review = data["content"][0]["text"]
+                                st.markdown(review)
+                                if st.button("📋 Copy"):
+                                    st.code(review, language=None)
+                                    st.success("Copied!")
+                            else:
+                                st.error(f"Unexpected response: {data}")
+                        except Exception as e:
+                            st.error(f"API Error: {str(e)}")
         else:
-            st.info("Select a thread from the left")
+            st.info("← Select a thread from the left")
 
 # ====================== HUMANIZER ======================
 with tab2:
@@ -114,29 +106,37 @@ with tab2:
     
     if st.button("✨ Humanize with Fable 5", type="primary"):
         if ai_text.strip():
-            with st.spinner("Fable 5 humanizing..."):
-                prompt = f"""Rewrite this reply to sound like a real, helpful human on Railway Central Station. Make it natural and friendly.
+            with st.spinner("Humanizing..."):
+                prompt = f"""Rewrite this to sound like a real helpful human on Railway Central Station. Natural, friendly, not robotic.
 
 Original:
 {ai_text}"""
 
-                resp = requests.post(
-                    "https://api.anthropic.com/v1/messages",
-                    headers={
-                        "x-api-key": ANTHROPIC_KEY,
-                        "anthropic-version": "2023-06-01",
-                        "Content-Type": "application/json"
-                    },
-                    json={
-                        "model": "claude-fable-5",
-                        "max_tokens": 1200,
-                        "messages": [{"role": "user", "content": prompt}]
-                    }
-                )
-                humanized = resp.json()["content"][0]["text"]
-                st.session_state.humanized = humanized
+                try:
+                    resp = requests.post(
+                        "https://api.anthropic.com/v1/messages",
+                        headers={
+                            "x-api-key": ANTHROPIC_KEY,
+                            "anthropic-version": "2023-06-01",
+                            "Content-Type": "application/json"
+                        },
+                        json={
+                            "model": "claude-fable-5",
+                            "max_tokens": 1200,
+                            "messages": [{"role": "user", "content": prompt}]
+                        }
+                    )
+                    data = resp.json()
+                    if "content" in data and len(data["content"]) > 0:
+                        humanized = data["content"][0]["text"]
+                        st.session_state.humanized = humanized
+                        st.success("Done!")
+                    else:
+                        st.error(f"API response error: {data}")
+                except Exception as e:
+                    st.error(f"Request failed: {str(e)}")
         else:
-            st.warning("Paste text first.")
+            st.warning("Please paste some text first.")
 
     if "humanized" in st.session_state:
         st.subheader("Humanized Version")
@@ -146,4 +146,4 @@ Original:
             st.code(st.session_state.humanized, language=None)
             st.success("Copied!")
 
-st.sidebar.info("Fable 5 is more creative and human-like")
+st.sidebar.info("Fable 5 is more creative - good for humanizing")
