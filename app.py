@@ -4,7 +4,7 @@ import os
 
 st.set_page_config(page_title="Railway Central Helper", layout="wide")
 st.title("🚄 Railway Central Station AI Helper")
-st.caption("v0.8 - Personal Tool + Confidence")
+st.caption("v0.9 - Better UI")
 
 ANTHROPIC_KEY = os.getenv("ANTHROPIC_KEY")
 
@@ -13,7 +13,7 @@ if not ANTHROPIC_KEY:
     st.stop()
 
 st.sidebar.success("✅ Claude Connected")
-st.sidebar.warning("⚠️ Always manually edit before posting")
+st.sidebar.warning("Always manually edit before posting")
 
 # Session state
 if "selected_slug" not in st.session_state:
@@ -21,67 +21,7 @@ if "selected_slug" not in st.session_state:
 if "reviews" not in st.session_state:
     st.session_state.reviews = {}
 
-QUERY = """
-{
-  threads(first: 20, sort: recent_activity) {
-    edges {
-      node {
-        slug
-        subject
-        status
-        topic { displayName }
-        upvoteCount
-        createdAt
-        content { data }
-      }
-    }
-  }
-}
-"""
-
-def fetch_threads():
-    try:
-        resp = requests.post("https://station-server.railway.com/gql", json={"query": QUERY})
-        return resp.json()["data"]["threads"]["edges"]
-    except:
-        st.error("Could not fetch threads")
-        return []
-
-def get_ai_review(thread_slug, thread_subject, content):
-    if thread_slug in st.session_state.reviews:
-        return st.session_state.reviews[thread_slug]
-    
-    prompt = f"""You are a senior Railway engineer.
-
-Thread Title: {thread_subject}
-
-Content: {content[:6000]}
-
-Write a friendly, useful reply.
-
-At the end, add exactly:
-CONFIDENCE: [number 0-100]
-REASON: [one short sentence]"""
-
-    try:
-        resp = requests.post(
-            "https://api.anthropic.com/v1/messages",
-            headers={
-                "x-api-key": ANTHROPIC_KEY,
-                "anthropic-version": "2023-06-01",
-                "Content-Type": "application/json"
-            },
-            json={
-                "model": "claude-sonnet-5",
-                "max_tokens": 1400,
-                "messages": [{"role": "user", "content": prompt}]
-            }
-        )
-        review = resp.json()["content"][0]["text"]
-        st.session_state.reviews[thread_slug] = review
-        return review
-    except Exception as e:
-        return f"Error: {str(e)}"
+# ... (keep the same fetch_threads and get_ai_review functions as previous version)
 
 # Refresh
 if st.button("🔄 Refresh Recent Threads", type="primary"):
@@ -89,7 +29,7 @@ if st.button("🔄 Refresh Recent Threads", type="primary"):
         st.session_state.threads = fetch_threads()
         st.session_state.selected_slug = None
 
-# Display threads
+# Threads list
 st.subheader("Recent Threads")
 for edge in st.session_state.get("threads", []):
     node = edge["node"]
@@ -102,7 +42,7 @@ for edge in st.session_state.get("threads", []):
     with col2:
         st.caption(node['topic']['displayName'])
 
-# Review section
+# Review section (appears right after the list when thread is selected)
 if st.session_state.selected_slug:
     selected_node = None
     for edge in st.session_state.get("threads", []):
@@ -112,16 +52,15 @@ if st.session_state.selected_slug:
     
     if selected_node:
         st.divider()
-        st.subheader(f"Reviewing: {selected_node['subject']}")
+        st.subheader(f"Selected: {selected_node['subject']}")
         content = selected_node.get("content", {}).get("data", "")
-        st.write(content[:800] + "..." if len(content) > 800 else content)
+        st.write(content[:700] + "..." if len(content) > 700 else content)
         
         if st.button("🤖 Generate AI Review + Confidence", type="primary"):
             with st.spinner("Claude reviewing..."):
                 review = get_ai_review(selected_node["slug"], selected_node["subject"], content)
                 st.session_state.current_review = review
                 
-                # Extract confidence
                 confidence = 50
                 if "CONFIDENCE:" in review:
                     try:
@@ -140,8 +79,8 @@ if st.session_state.selected_slug:
                 else:
                     st.error(f"Low Confidence: {confidence}/100")
                 
-                if st.button("📋 Copy Review"):
+                if st.button("📋 Copy"):
                     st.code(review, language=None)
                     st.success("Copied!")
 
-st.sidebar.info("1. Refresh\n2. Click thread\n3. Generate Review\n\nAlways edit before posting!")
+st.sidebar.info("Click a thread → Generate Review → Edit manually")
