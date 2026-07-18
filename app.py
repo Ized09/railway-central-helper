@@ -4,7 +4,7 @@ import os
 
 st.set_page_config(page_title="Railway Central Helper", layout="wide")
 st.title("🚄 Railway Central Station AI Helper")
-st.caption("v0.5 - Working Claude Review")
+st.caption("v0.6 - Popup Reviews")
 
 ANTHROPIC_KEY = os.getenv("ANTHROPIC_KEY")
 
@@ -41,13 +41,13 @@ def fetch_threads():
         return []
 
 def get_ai_review(thread_subject, content):
-    prompt = f"""You are a senior Railway engineer helping on Central Station.
+    prompt = f"""You are a senior Railway engineer.
 
 Thread Title: {thread_subject}
 
 Content: {content[:6000]}
 
-Write a friendly, useful, and concise reply."""
+Write a friendly, useful reply."""
 
     try:
         resp = requests.post(
@@ -67,7 +67,7 @@ Write a friendly, useful, and concise reply."""
     except Exception as e:
         return f"Error: {str(e)}"
 
-# UI
+# Main UI
 show_bounties_only = st.checkbox("Show only Bounty threads 💰", value=False)
 
 if st.button("🔄 Refresh Recent Threads", type="primary"):
@@ -86,13 +86,17 @@ if st.button("🔄 Refresh Recent Threads", type="primary"):
                 content = node.get("content", {}).get("data", "")
                 st.write(content[:700] + "..." if len(content) > 700 else content)
                 
-                if st.button("🤖 Get AI Review", key=node["slug"]):
+                if st.button("🤖 Open AI Review", key=node["slug"]):
                     with st.spinner("Claude reviewing..."):
                         review = get_ai_review(node["subject"], content)
-                        st.markdown(review)
                         
-                        if st.button("📋 Copy Reply", key=f"copy_{node['slug']}"):
-                            st.code(review, language=None)
-                            st.success("Copied!")
+                        # Show as popup/dialog
+                        with st.dialog("AI Review"):
+                            st.markdown(review)
+                            if st.button("📋 Copy Reply"):
+                                st.code(review, language=None)
+                                st.success("Copied!")
+                            if st.button("Close"):
+                                st.rerun()
 
-st.sidebar.info("Ready for testing")
+st.sidebar.info("Click 'Open AI Review' to see popup")
