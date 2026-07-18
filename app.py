@@ -4,7 +4,7 @@ import os
 
 st.set_page_config(page_title="Railway Central Helper", layout="wide")
 st.title("🚄 Railway Central Station AI Helper")
-st.caption("v1.0 - Helper + Humanizer")
+st.caption("v1.1 - Testing Fable 5")
 
 ANTHROPIC_KEY = os.getenv("ANTHROPIC_KEY")
 
@@ -12,16 +12,13 @@ if not ANTHROPIC_KEY:
     st.error("Anthropic API key not set.")
     st.stop()
 
-st.sidebar.success("✅ Claude Connected")
+st.sidebar.success("✅ Claude Connected (Fable 5)")
 st.sidebar.warning("⚠️ Always manually edit before posting")
 
 tab1, tab2 = st.tabs(["📋 Thread Helper", "✍️ Humanizer"])
 
-# ====================== THREAD HELPER TAB ======================
+# ====================== THREAD HELPER ======================
 with tab1:
-    st.subheader("Thread Helper")
-    
-    # Session state for helper
     if "threads" not in st.session_state:
         st.session_state.threads = []
     if "selected_slug" not in st.session_state:
@@ -77,8 +74,8 @@ with tab1:
                 content = selected_node.get("content", {}).get("data", "")
                 st.write(content[:700] + "..." if len(content) > 700 else content)
                 
-                if st.button("🤖 Generate AI Review + Confidence", type="primary"):
-                    with st.spinner("Claude reviewing..."):
+                if st.button("🤖 Generate AI Review (Fable 5)", type="primary"):
+                    with st.spinner("Fable 5 reviewing..."):
                         prompt = f"""You are a senior Railway engineer.
 
 Thread Title: {selected_node['subject']}
@@ -95,15 +92,13 @@ Write a friendly, useful reply."""
                                 "Content-Type": "application/json"
                             },
                             json={
-                                "model": "claude-sonnet-5",
+                                "model": "claude-fable-5",
                                 "max_tokens": 1200,
                                 "messages": [{"role": "user", "content": prompt}]
                             }
                         )
                         review = resp.json()["content"][0]["text"]
                         st.session_state.current_review = review
-                        
-                        st.markdown("### AI Review")
                         st.markdown(review)
                         
                         if st.button("📋 Copy"):
@@ -112,32 +107,19 @@ Write a friendly, useful reply."""
         else:
             st.info("Select a thread from the left")
 
-# ====================== HUMANIZER TAB ======================
+# ====================== HUMANIZER ======================
 with tab2:
-    st.subheader("✍️ Humanizer Tool")
-    st.caption("Make AI text sound more natural")
-    
+    st.subheader("✍️ Humanizer (Fable 5)")
     ai_text = st.text_area("Paste AI-generated text here:", height=250)
     
-    style = st.selectbox("Humanize Style", [
-        "Natural & Friendly (most recommended)",
-        "Professional but Warm",
-        "Short & Direct",
-        "Detailed & Helpful"
-    ])
-    
-    if st.button("✨ Humanize", type="primary"):
+    if st.button("✨ Humanize with Fable 5", type="primary"):
         if ai_text.strip():
-            with st.spinner("Humanizing..."):
-                prompt = f"""Rewrite this reply to sound like a helpful, real human on Railway Central Station.
+            with st.spinner("Fable 5 humanizing..."):
+                prompt = f"""Rewrite this reply to sound like a real, helpful human on Railway Central Station. Make it natural and friendly.
 
-Style: {style}
+Original:
+{ai_text}"""
 
-Original text:
-{ai_text}
-
-Make it natural, friendly, and human-sounding. Avoid robotic language."""
-                
                 resp = requests.post(
                     "https://api.anthropic.com/v1/messages",
                     headers={
@@ -146,7 +128,7 @@ Make it natural, friendly, and human-sounding. Avoid robotic language."""
                         "Content-Type": "application/json"
                     },
                     json={
-                        "model": "claude-sonnet-5",
+                        "model": "claude-fable-5",
                         "max_tokens": 1200,
                         "messages": [{"role": "user", "content": prompt}]
                     }
@@ -154,7 +136,7 @@ Make it natural, friendly, and human-sounding. Avoid robotic language."""
                 humanized = resp.json()["content"][0]["text"]
                 st.session_state.humanized = humanized
         else:
-            st.warning("Paste some text first.")
+            st.warning("Paste text first.")
 
     if "humanized" in st.session_state:
         st.subheader("Humanized Version")
@@ -164,4 +146,4 @@ Make it natural, friendly, and human-sounding. Avoid robotic language."""
             st.code(st.session_state.humanized, language=None)
             st.success("Copied!")
 
-st.sidebar.info("Thread Helper → Generate AI Review\nHumanizer → Make it sound natural")
+st.sidebar.info("Fable 5 is more creative and human-like")
