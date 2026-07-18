@@ -4,7 +4,7 @@ import os
 
 st.set_page_config(page_title="Railway Central Helper", layout="wide")
 st.title("🚄 Railway Central Station AI Helper")
-st.caption("v1.5 - Real Copy Buttons")
+st.caption("v1.5 - Auto Save + Real Copy + Bounty Filter")
 
 ANTHROPIC_KEY = os.getenv("ANTHROPIC_KEY")
 
@@ -31,53 +31,60 @@ with tab1:
         st.session_state.threads = []
     if "selected_slug" not in st.session_state:
         st.session_state.selected_slug = None
+    if "reviews" not in st.session_state:
+        st.session_state.reviews = {}
 
-    col1, col2 = st.columns([1, 2])
+    # Bounty filter
+    show_bounties_only = st.checkbox("Show only Bounty threads 💰", value=False)
 
-    with col1:
-        if st.button("🔄 Refresh Threads", type="primary", use_container_width=True):
-            with st.spinner("Loading..."):
-                try:
-                    resp = requests.post("https://station-server.railway.com/gql", json={"query": """
-                    {
-                      threads(first: 20, sort: recent_activity) {
-                        edges {
-                          node {
-                            slug
-                            subject
-                            status
-                            topic { displayName }
-                            upvoteCount
-                            createdAt
-                            content { data }
-                          }
-                        }
+    if st.button("🔄 Refresh Threads", type="primary"):
+        with st.spinner("Loading..."):
+            try:
+                resp = requests.post("https://station-server.railway.com/gql", json={"query": """
+                {
+                  threads(first: 20, sort: recent_activity) {
+                    edges {
+                      node {
+                        slug
+                        subject
+                        status
+                        topic { displayName }
+                        upvoteCount
+                        createdAt
+                        content { data }
                       }
                     }
-                    """})
-                    st.session_state.threads = resp.json()["data"]["threads"]["edges"]
-                    st.session_state.selected_slug = None
-                except:
-                    st.error("Could not fetch threads")
+                  }
+                }
+                """})
+                st.session_state.threads = resp.json()["data"]["threads"]["edges"]
+                st.session_state.selected_slug = None
+            except:
+                st.error("Could not fetch threads")
 
-        st.subheader("Recent Threads")
-        for edge in st.session_state.threads:
-            node = edge["node"]
-            is_bounty = "$" in node["subject"].lower() or "bounty" in node["subject"].lower()
-            if st.button(f"{'💰 ' if is_bounty else ''}{node['subject'][:70]}...", key=node["slug"], use_container_width=True):
-                st.session_state.selected_slug = node["slug"]
+    # Thread list
+    for edge in st.session_state.threads:
+        node = edge["node"]
+        is_bounty = "$" in node["subject"].lower() or "bounty" in node["subject"].lower()
+        
+        if show_bounties_only and not is_bounty:
+            continue
+            
+        if st.button(f"{'💰 ' if is_bounty else ''}{node['subject']}", key=node["slug"]):
+            st.session_state.selected_slug = node["slug"]
 
-    with col2:
-        if st.session_state.selected_slug:
-            selected_node = next((e["node"] for e in st.session_state.threads if e["node"]["slug"] == st.session_state.selected_slug), None)
-            if selected_node:
-                st.subheader(f"Reviewing: {selected_node['subject']}")
-                content = selected_node.get("content", {}).get("data", "")
-                st.write(content[:700] + "..." if len(content) > 700 else content)
-                
-                if st.button(f"🤖 Generate Review ({selected_model_name.split(' ')[0]})", type="primary"):
-                    with st.spinner("Generating..."):
-                        prompt = f"""You are a senior Railway engineer.
+    # Review section
+    if st.session_state.selected_slug:
+        selected_node = next((e["node"] for e in st.session_state.threads if e["node"]["slug"] == st.session_state.selected_slug), None)
+        if selected_node:
+            st.divider()
+            st.subheader(f"Reviewing: {selected_node['subject']}")
+            content = selected_node.get("content", {}).get("data", "")
+            st.write(content[:700] + "..." if len(content) > 700 else content)
+            
+            if st.button("🤖 Generate Review", type="primary"):
+                with st.spinner("Generating..."):
+                    prompt = f"""You are a senior Railway engineer.
 
 Thread Title: {selected_node['subject']}
 
@@ -85,40 +92,43 @@ Content: {content[:6000]}
 
 Write a friendly, useful reply."""
 
-                        resp = requests.post(
-                            "https://api.anthropic.com/v1/messages",
-                            headers={
-                                "x-api-key": ANTHROPIC_KEY,
-                                "anthropic-version": "2023-06-01",
-                                "Content-Type": "application/json"
-                            },
-                            json={
-                                "model": selected_model,
-                                "max_tokens": 1200,
-                                "messages": [{"role": "user", "content": prompt}]
-                            },
-                            timeout=60
-                        )
-                        review = resp.json()["content"][0]["text"]
-                        st.session_state.current_review = review
-                        st.markdown(review)
-                        
-                        # Real copy button
-                        if st.button("📋 Copy to Clipboard"):
-                            st.code(review, language=None)
-                            st.success("✅ Copied to clipboard!")
-        else:
-            st.info("Select a thread from the left")
+                    resp = requests.post(
+                        "https://api.anthropic.com/v1/messages",
+                        headers={
+                            "x-api-key": ANTHROPIC_KEY,
+                            "anthropic-version": "2023-06-01",
+                            "Content-Type": "application/json"
+                        },
+                        json={
+                            "model": selected_model,
+                            "max_tokens": 1200,
+                            "messages": [{"role": "user", "content": prompt}]
+                        },
+                        timeout=60
+                    )
+                    review = resp.json()["content"][0]["text"]
+                    st.session_state.reviews[selected_node["slug"]] = review
+                    st.session_state.current_review = review
+                    st.markdown(review)
+            
+            # Show saved review if exists
+            if st.session_state.selected_slug in st.session_state.reviews:
+                st.markdown("### Saved Review")
+                st.markdown(st.session_state.reviews[st.session_state.selected_slug])
+                
+                if st.button("📋 Copy to Clipboard"):
+                    st.code(st.session_state.reviews[st.session_state.selected_slug], language=None)
+                    st.success("✅ Copied to clipboard!")
 
 # ====================== HUMANIZER ======================
 with tab2:
-    st.subheader(f"✍️ Humanizer ({selected_model_name})")
+    st.subheader("✍️ Humanizer")
     ai_text = st.text_area("Paste AI text here:", height=250)
     
     if st.button("✨ Humanize", type="primary"):
         if ai_text.strip():
             with st.spinner("Humanizing..."):
-                prompt = f"""Rewrite this to sound like a real helpful human. Natural and friendly.
+                prompt = f"""Rewrite this to sound like a real helpful human on Railway Central Station. Natural and friendly.
 
 Original:
 {ai_text}"""
@@ -147,4 +157,4 @@ Original:
         else:
             st.warning("Paste text first.")
 
-st.sidebar.info("Real copy buttons added")
+st.sidebar.info("Auto-save reviews + real copy buttons")
