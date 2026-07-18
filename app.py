@@ -4,7 +4,7 @@ import os
 
 st.set_page_config(page_title="Railway Central Helper", layout="wide")
 st.title("🚄 Railway Central Station AI Helper")
-st.caption("v0.6 - Clean & Reliable")
+st.caption("v0.6 - Stable Buttons")
 
 ANTHROPIC_KEY = os.getenv("ANTHROPIC_KEY")
 
@@ -13,6 +13,10 @@ if not ANTHROPIC_KEY:
     st.stop()
 
 st.sidebar.success("✅ Claude Connected")
+
+# Session state to store reviews
+if "reviews" not in st.session_state:
+    st.session_state.reviews = {}
 
 QUERY = """
 {
@@ -40,7 +44,10 @@ def fetch_threads():
         st.error("Could not fetch threads")
         return []
 
-def get_ai_review(thread_subject, content):
+def get_ai_review(thread_slug, thread_subject, content):
+    if thread_slug in st.session_state.reviews:
+        return st.session_state.reviews[thread_slug]
+    
     prompt = f"""You are a senior Railway engineer.
 
 Thread Title: {thread_subject}
@@ -63,7 +70,9 @@ Write a friendly, useful reply."""
                 "messages": [{"role": "user", "content": prompt}]
             }
         )
-        return resp.json()["content"][0]["text"]
+        review = resp.json()["content"][0]["text"]
+        st.session_state.reviews[thread_slug] = review
+        return review
     except Exception as e:
         return f"Error: {str(e)}"
 
@@ -90,11 +99,11 @@ if st.button("🔄 Refresh Recent Threads", type="primary"):
                 with col1:
                     if st.button("🤖 Get AI Review", key=node["slug"]):
                         with st.spinner("Claude reviewing..."):
-                            review = get_ai_review(node["subject"], content)
+                            review = get_ai_review(node["slug"], node["subject"], content)
                             st.markdown(review)
                 with col2:
                     if st.button("📋 Copy", key=f"copy_{node['slug']}"):
-                        st.code(review, language=None)
+                        st.code(st.session_state.reviews.get(node["slug"], ""), language=None)
                         st.success("Copied!")
 
-st.sidebar.info("Click Get AI Review to see the response below the button")
+st.sidebar.info("Reviews are cached in session")
