@@ -13,7 +13,7 @@ if not ANTHROPIC_KEY:
     st.stop()
 
 st.sidebar.success("✅ Claude Connected")
-st.sidebar.warning("Always manually edit before posting")
+st.sidebar.warning("⚠️ Always manually edit before posting")
 
 # Session state
 if "selected_slug" not in st.session_state:
@@ -21,7 +21,63 @@ if "selected_slug" not in st.session_state:
 if "reviews" not in st.session_state:
     st.session_state.reviews = {}
 
-# ... (keep the same fetch_threads and get_ai_review functions as previous version)
+QUERY = """
+{
+  threads(first: 20, sort: recent_activity) {
+    edges {
+      node {
+        slug
+        subject
+        status
+        topic { displayName }
+        upvoteCount
+        createdAt
+        content { data }
+      }
+    }
+  }
+}
+"""
+
+def fetch_threads():
+    try:
+        resp = requests.post("https://station-server.railway.com/gql", json={"query": QUERY})
+        return resp.json()["data"]["threads"]["edges"]
+    except:
+        st.error("Could not fetch threads")
+        return []
+
+def get_ai_review(thread_slug, thread_subject, content):
+    if thread_slug in st.session_state.reviews:
+        return st.session_state.reviews[thread_slug]
+    
+    prompt = f"""You are a senior Railway engineer.
+
+Thread Title: {thread_subject}
+
+Content: {content[:6000]}
+
+Write a friendly, useful reply."""
+
+    try:
+        resp = requests.post(
+            "https://api.anthropic.com/v1/messages",
+            headers={
+                "x-api-key": ANTHROPIC_KEY,
+                "anthropic-version": "2023-06-01",
+                "Content-Type": "application/json"
+            },
+            json={
+                "model": "claude-sonnet-5",
+                "max_tokens": 1200,
+                "messages": [{"role": "user", "content": prompt}]
+            }
+        )
+        review = resp.json()["content"][0]["text"]
+        st.session_state.reviews[thread_slug] = review
+        return review
+    except Exception as e:
+        return f"Error: {str(e)}"
 
 # Refresh
 if st.button("🔄 Refresh Recent Threads", type="primary"):
@@ -42,7 +98,7 @@ for edge in st.session_state.get("threads", []):
     with col2:
         st.caption(node['topic']['displayName'])
 
-# Review section (appears right after the list when thread is selected)
+# Review section (right below)
 if st.session_state.selected_slug:
     selected_node = None
     for edge in st.session_state.get("threads", []):
@@ -52,9 +108,9 @@ if st.session_state.selected_slug:
     
     if selected_node:
         st.divider()
-        st.subheader(f"Selected: {selected_node['subject']}")
+        st.subheader(f"Reviewing: {selected_node['subject']}")
         content = selected_node.get("content", {}).get("data", "")
-        st.write(content[:700] + "..." if len(content) > 700 else content)
+        st.write(content[:800] + "..." if len(content) > 800 else content)
         
         if st.button("🤖 Generate AI Review + Confidence", type="primary"):
             with st.spinner("Claude reviewing..."):
@@ -79,8 +135,8 @@ if st.session_state.selected_slug:
                 else:
                     st.error(f"Low Confidence: {confidence}/100")
                 
-                if st.button("📋 Copy"):
+                if st.button("📋 Copy Review"):
                     st.code(review, language=None)
                     st.success("Copied!")
 
-st.sidebar.info("Click a thread → Generate Review → Edit manually")
+st.sidebar.info("1. Refresh\n2. Click thread title\n3. Generate Review")
