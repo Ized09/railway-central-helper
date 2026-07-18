@@ -16,24 +16,31 @@ st.success("Key loaded successfully!")
 if st.button("Test Claude API Call"):
     with st.spinner("Calling Claude..."):
         try:
+            payload = {
+                "model": "claude-3-5-sonnet-20240620",
+                "max_tokens": 300,
+                "messages": [{"role": "user", "content": "Say hello and confirm you are working."}]
+            }
+            
             resp = requests.post(
                 "https://api.anthropic.com/v1/messages",
                 headers={
                     "x-api-key": ANTHROPIC_KEY,
                     "anthropic-version": "2023-06-01",
-                    "content-type": "application/json"
+                    "Content-Type": "application/json"
                 },
-                json={
-                    "model": "claude-3-5-sonnet-20240620",
-                    "max_tokens": 300,
-                    "messages": [{"role": "user", "content": "Say hello and confirm you are working."}]
-                }
+                json=payload
             )
-            result = resp.json()
-            st.success("Success!")
-            st.write(result["content"][0]["text"])
+            
+            st.write("Status code:", resp.status_code)
+            
+            if resp.status_code == 200:
+                result = resp.json()
+                st.success("Success!")
+                st.write(result["content"][0]["text"])
+            else:
+                st.error(f"API Error: {resp.text}")
         except Exception as e:
-            st.error(f"Error: {str(e)}")
-            st.write("Status code:", resp.status_code if 'resp' in locals() else "No response")
+            st.error(f"Exception: {str(e)}")
 
-st.info("If the Test button works, the full review feature will work too.")
+st.info("If this Test button works, the full version will work too.")
